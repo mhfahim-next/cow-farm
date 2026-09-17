@@ -1,0 +1,1011 @@
+{
+  "info": {
+    "name": "Cow Farm \u2014 Full-stack Next.js",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Next.js + Prisma cow farm API. Base URL uses port 3000.\nSTART: Edit the collection variables ownerEmail and ownerPassword locally, save, then send Auth / Login. The token is saved automatically. Send Cows / Create cow next. New record IDs are saved in collection variables for dependent requests.\nSend requests individually. Do not run the entire collection: close, pregnancy loss, calving, and cow exit are alternative/final actions. Replace sample dates and animal information with real records. Product/dose placeholders are not veterinary advice.\nCreate cycle -> record heat -> service -> positive check -> pregnancy planning -> dry-off -> calving OR loss.\nHealth event -> treatment plan -> administration -> task completion with the correct evidence.\nDates in request scripts are local examples relative to today to avoid future actual-event errors. dateToday and now are refreshed per request. Other example dates are generated per request. IDs and credentials are blank until you set/create them.\nToken and IDs are stored locally in collection variables. Clear credentials and token before exporting or sharing."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "ownerEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cowId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cycleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "serviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pregnancyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "checkId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "healthEventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "treatmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "administrationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "taskId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workerId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = new Date();",
+          "pm.variables.set(\"now\", now.toISOString());",
+          "pm.variables.set(\"dateToday\", now.toISOString().slice(0, 10));",
+          "const dates = {cycleDate:-300,heatTime:-299,serviceTime:-298,checkTime:-250,healthTime:-2,treatmentDate:-2,administrationTime:-1,dryOffDate:-60,calvingTime:-1,nextCheck:30,expectedCalving:30,plannedDryOff:7,taskDue:1,withdrawalEnd:7};",
+          "for (const [name, days] of Object.entries(dates)) { const d = new Date(now.getTime() + days*86400000); pm.variables.set(name, [\"cycleDate\",\"treatmentDate\",\"dryOffDate\",\"expectedCalving\",\"plannedDryOff\"].includes(name) ? d.toISOString().slice(0,10) : d.toISOString()); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 \u2014 Server checks",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "http://localhost:3000/api/health",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Database readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "http://localhost:3000/ready",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 \u2014 Auth",
+      "item": [
+        {
+          "name": "Login \u2014 run first",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Set ownerEmail and ownerPassword in collection variables to the credentials used by db:seed.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.accessToken) pm.collectionVariables.set(\"accessToken\", data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/auth/me",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 \u2014 Staff \u2014 owner only",
+      "item": [
+        {
+          "name": "List staff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/",
+            "description": ""
+          }
+        },
+        {
+          "name": "Create worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users/",
+            "description": "Change example email and password before sending.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Example worker\",\n  \"email\": \"worker@example.com\",\n  \"password\": \"REPLACE-with-your-own-password\",\n  \"role\": \"WORKER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"workerId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 \u2014 Cows",
+      "item": [
+        {
+          "name": "Create cow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cows/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tagNumber\": \"COW-{{$timestamp}}\",\n  \"name\": \"Lali\",\n  \"sex\": \"FEMALE\",\n  \"category\": \"DAIRY\",\n  \"breed\": \"Friesian cross\",\n  \"birthDate\": \"2022-01-01\",\n  \"birthDateEstimated\": true,\n  \"origin\": \"PURCHASED\",\n  \"purchasePrice\": 180000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"cowId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List cows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/cows/?page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Search active dairy cows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/cows/?page=1&limit=20&search=COW&status=ACTIVE&category=DAIRY",
+            "description": ""
+          }
+        },
+        {
+          "name": "Cow profile and withdrawal restrictions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/cows/{{cowId}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Update cow details",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cows/{{cowId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lali\",\n  \"notes\": \"Updated farm notes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cow timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/cows/{{cowId}}/timeline?page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Archive cow \u2014 cancels pending tasks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cows/{{cowId}}/exit",
+            "description": "Final action. Blocks new activities for this animal. Use only after other tests, or on a separate cow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SOLD\",\n  \"exitDate\": \"{{dateToday}}\",\n  \"notes\": \"Cow sold; financial record handled separately\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 \u2014 Breeding cycles",
+      "item": [
+        {
+          "name": "Create breeding cycle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cowId\": \"{{cowId}}\",\n  \"startedOn\": \"{{cycleDate}}\",\n  \"notes\": \"Example reproductive cycle\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"cycleId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List cycles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/breeding/cycles?cowId={{cowId}}&page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Cycle detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Record heat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}/heats",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observedAt\": \"{{heatTime}}\",\n  \"signs\": \"Enter actual observed signs\",\n  \"observedBy\": \"Farm worker\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record insemination",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}/services",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"performedAt\": \"{{serviceTime}}\",\n  \"method\": \"ARTIFICIAL_INSEMINATION\",\n  \"semenCode\": \"EXAMPLE-001\",\n  \"technicianName\": \"Enter technician name\",\n  \"cost\": 500,\n  \"pregnancyCheckDueAt\": \"{{nextCheck}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"serviceId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Positive pregnancy check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}/checks",
+            "description": "Use once to create the pregnancy. Later positive follow-ups omit service/planning fields.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkedAt\": \"{{checkTime}}\",\n  \"method\": \"Veterinary examination\",\n  \"result\": \"PREGNANT\",\n  \"breedingServiceId\": \"{{serviceId}}\",\n  \"veterinarianName\": \"Enter veterinarian name\",\n  \"cost\": 1000,\n  \"estimatedCalvingDate\": \"{{expectedCalving}}\",\n  \"plannedDryOffDate\": \"{{plannedDryOff}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.check.id) pm.collectionVariables.set(\"checkId\", data.check.id);",
+                  "  if (data?.pregnancy.id) pm.collectionVariables.set(\"pregnancyId\", data.pregnancy.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Negative check \u2014 alternative outcome",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}/checks",
+            "description": "For an OPEN cycle only. Do not run after confirmation; confirmed pregnancy loss has its own endpoint.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkedAt\": \"{{checkTime}}\",\n  \"method\": \"Veterinary examination\",\n  \"result\": \"NOT_PREGNANT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.check.id) pm.collectionVariables.set(\"checkId\", data.check.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Close unsuccessful cycle \u2014 alternative outcome",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/cycles/{{cycleId}}/close",
+            "description": "Only for an OPEN cycle, not a confirmed pregnancy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"closedOn\": \"{{dateToday}}\",\n  \"notes\": \"Unsuccessful attempt closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 \u2014 Pregnancy and calving",
+      "item": [
+        {
+          "name": "List pregnancies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/breeding/pregnancies?cowId={{cowId}}&page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Update pregnancy plan",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/pregnancies/{{pregnancyId}}/plan",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estimatedCalvingDate\": \"{{expectedCalving}}\",\n  \"plannedDryOffDate\": \"{{plannedDryOff}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record actual dry-off",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/pregnancies/{{pregnancyId}}/dry-off",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actualDryOffDate\": \"{{dryOffDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record calving and calf",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/pregnancies/{{pregnancyId}}/calving",
+            "description": "Ends the pregnancy and creates the calf. Adjust actual dates/counts. Do not also run the loss request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"calvedAt\": \"{{calvingTime}}\",\n  \"totalBorn\": 1,\n  \"bornAlive\": 1,\n  \"stillborn\": 0,\n  \"assistanceLevel\": \"Unassisted\",\n  \"calves\": [\n    {\n      \"tagNumber\": \"CALF-{{$timestamp}}\",\n      \"sex\": \"FEMALE\",\n      \"breed\": \"Friesian cross\"\n    }\n  ],\n  \"postpartumCheckDueAt\": \"{{taskDue}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Record pregnancy loss \u2014 alternative to calving",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/breeding/pregnancies/{{pregnancyId}}/loss",
+            "description": "Ends an ONGOING pregnancy. Cannot run after calving.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"endedOn\": \"{{dateToday}}\",\n  \"outcomeNotes\": \"Enter veterinarian-confirmed details\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 \u2014 Health and treatment",
+      "item": [
+        {
+          "name": "Create health event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health/events",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cowId\": \"{{cowId}}\",\n  \"eventType\": \"ILLNESS\",\n  \"occurredAt\": \"{{healthTime}}\",\n  \"symptoms\": \"Enter actual symptoms\",\n  \"veterinarianName\": \"Enter veterinarian name\",\n  \"consultationCost\": 500,\n  \"followUpDueAt\": \"{{taskDue}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"healthEventId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List health events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health/events?cowId={{cowId}}&page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Health event details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health/events/{{healthEventId}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Create treatment plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health/events/{{healthEventId}}/treatments",
+            "description": "Use VACCINATION or DEWORMING treatmentType for those records. Replace product and withdrawal requirements with actual instructions.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"treatmentType\": \"MEDICATION\",\n  \"productName\": \"Enter prescribed product\",\n  \"prescribedInstructions\": \"Enter actual veterinary instructions\",\n  \"prescribedBy\": \"Enter veterinarian name\",\n  \"startsOn\": \"{{treatmentDate}}\",\n  \"milkWithdrawalRequired\": true,\n  \"meatWithdrawalRequired\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"treatmentId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Record actual administration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health/treatments/{{treatmentId}}/administrations",
+            "description": "Dose and withdrawal dates are examples only. Enter actual prescribed values. Omit restriction end fields if the corresponding treatment withdrawal flag is false.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"administeredAt\": \"{{administrationTime}}\",\n  \"doseAmount\": 1,\n  \"doseUnit\": \"mL\",\n  \"administeredBy\": \"Farm worker\",\n  \"cost\": 100,\n  \"milkRestrictedUntil\": \"{{withdrawalEnd}}\",\n  \"meatRestrictedUntil\": \"{{withdrawalEnd}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"administrationId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Close treatment \u2014 after tasks completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health/treatments/{{treatmentId}}/close",
+            "description": "Cancels pending tasks linked to this treatment. Complete applicable tasks first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"endsOn\": \"{{dateToday}}\",\n  \"notes\": \"Course completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Resolve health event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/health/events/{{healthEventId}}/resolve",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolvedAt\": \"{{now}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 \u2014 Tasks",
+      "item": [
+        {
+          "name": "Schedule treatment task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/",
+            "description": "Create while treatment is PLANNED or ACTIVE. Optionally add assignedTo with workerId for a worker.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cowId\": \"{{cowId}}\",\n  \"treatmentId\": \"{{treatmentId}}\",\n  \"taskType\": \"TREATMENT\",\n  \"title\": \"Record prescribed administration\",\n  \"dueAt\": \"{{taskDue}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json().data;",
+                  "  if (data?.id) pm.collectionVariables.set(\"taskId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/?cowId={{cowId}}&page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "List overdue tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/tasks/?overdue=true&page=1&limit=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Reschedule task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dueAt\": \"{{taskDue}}\",\n  \"title\": \"Updated treatment schedule\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Complete task with actual administration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}/complete",
+            "description": "For the treatment task created above. Other task types require their corresponding event evidence.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completedAt\": \"{{now}}\",\n  \"completionNotes\": \"Actual administration recorded\",\n  \"evidence\": {\n    \"type\": \"ADMINISTRATION\",\n    \"id\": \"{{administrationId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel task \u2014 alternative to completion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tasks/{{taskId}}/cancel",
+            "description": "Pending tasks only. Do not run after completing the same task.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\",\n  \"completionNotes\": \"Plan changed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 \u2014 Dashboard",
+      "item": [
+        {
+          "name": "Farm dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/dashboard/",
+            "description": ""
+          }
+        }
+      ]
+    }
+  ]
+}

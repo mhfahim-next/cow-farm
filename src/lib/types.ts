@@ -1,0 +1,144 @@
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'OWNER' | 'MANAGER' | 'WORKER';
+};
+export type List<T> = { items: T[]; total: number; page: number; limit: number };
+export type Cow = {
+  id: string;
+  tagNumber: string;
+  name?: string;
+  sex: string;
+  category: string;
+  breed?: string;
+  status: string;
+  birthDate?: string;
+  birthDateEstimated: boolean;
+  origin: string;
+  purchaseDate?: string;
+  purchasePrice?: string;
+  sellerName?: string;
+  notes?: string;
+  mother?: { id: string; tagNumber: string };
+  calves?: Cow[];
+  cycles?: Cycle[];
+  tasks?: Task[];
+  withdrawalRestrictions?: Treatment[];
+};
+export type Heat = { id: string; observedAt: string; signs: string; observedBy?: string };
+export type Service = {
+  id: string;
+  performedAt: string;
+  method: string;
+  cost: string;
+  technicianName?: string;
+};
+export type Check = {
+  id: string;
+  checkedAt: string;
+  result: string;
+  method: string;
+  veterinarianName?: string;
+};
+export type Cycle = {
+  id: string;
+  cowId: string;
+  startedOn: string;
+  closedOn?: string;
+  status: string;
+  notes?: string;
+  heats?: Heat[];
+  services?: Service[];
+  checks?: Check[];
+  pregnancy?: Pregnancy;
+};
+export type Pregnancy = {
+  id: string;
+  breedingCycleId: string;
+  confirmedOn: string;
+  estimatedCalvingDate?: string;
+  plannedDryOffDate?: string;
+  actualDryOffDate?: string;
+  status: string;
+  endedOn?: string;
+  outcomeNotes?: string;
+  cycle?: Cycle & { cow: Cow };
+  calving?: {
+    id: string;
+    calvedAt: string;
+    totalBorn: number;
+    bornAlive: number;
+    stillborn: number;
+    calves: Cow[];
+  };
+};
+export type HealthEvent = {
+  id: string;
+  cowId: string;
+  eventType: string;
+  occurredAt: string;
+  resolvedAt?: string;
+  symptoms?: string;
+  diagnosis?: string;
+  veterinarianName?: string;
+  consultationCost: string;
+  notes?: string;
+  treatments?: Treatment[];
+};
+export type Treatment = {
+  id: string;
+  healthEventId: string;
+  treatmentType: string;
+  productName: string;
+  prescribedInstructions: string;
+  startsOn: string;
+  endsOn?: string;
+  status: string;
+  milkWithdrawalRequired: boolean;
+  meatWithdrawalRequired: boolean;
+  milkRestrictedUntil?: string;
+  meatRestrictedUntil?: string;
+  administrations?: Administration[];
+};
+export type Administration = {
+  id: string;
+  treatmentId: string;
+  administeredAt: string;
+  doseAmount: string;
+  doseUnit: string;
+  administeredBy?: string;
+  productBatch?: string;
+  cost: string;
+};
+export type Task = {
+  id: string;
+  cowId: string;
+  taskType: string;
+  title: string;
+  dueAt: string;
+  status: string;
+  assignedTo?: string;
+  assignee?: User;
+  cow?: { tagNumber: string };
+  breedingCycleId?: string;
+  pregnancyId?: string;
+  treatmentId?: string;
+  healthEventId?: string;
+  completedAt?: string;
+  completionNotes?: string;
+};
+export type TimelineEvent = {
+  id: string;
+  type: string;
+  occurredAt: string;
+  details: Record<string, unknown>;
+};
+export type Dashboard = {
+  activeCattle: number;
+  byCategory: { category: string; _count: number }[];
+  ongoingPregnancies: number;
+  overdueTasks: number;
+  upcomingTasks: Task[];
+  expectedCalvings: Pregnancy[];
+};

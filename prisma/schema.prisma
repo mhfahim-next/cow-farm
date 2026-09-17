@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/server/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  WORKER
+}
+
+enum Sex {
+  FEMALE
+  MALE
+}
+
+enum Category {
+  DAIRY
+  BEEF
+  HEIFER
+  CALF
+}
+
+enum Origin {
+  PURCHASED
+  FARM_BORN
+}
+
+enum CowStatus {
+  ACTIVE
+  SOLD
+  DECEASED
+  TRANSFERRED
+}
+
+enum CycleStatus {
+  OPEN
+  PREGNANT
+  CLOSED_UNSUCCESSFUL
+  CLOSED_CALVED
+  CLOSED_LOSS
+}
+
+enum BreedingMethod {
+  ARTIFICIAL_INSEMINATION
+  NATURAL_SERVICE
+}
+
+enum CheckResult {
+  PREGNANT
+  NOT_PREGNANT
+  INCONCLUSIVE
+}
+
+enum PregnancyStatus {
+  ONGOING
+  CALVED
+  LOST
+}
+
+enum HealthType {
+  ILLNESS
+  VACCINATION
+  DEWORMING
+  CHECKUP
+  INJURY
+  OTHER
+}
+
+enum TreatmentType {
+  MEDICATION
+  VACCINATION
+  DEWORMING
+  OTHER
+}
+
+enum TreatmentStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  STOPPED
+}
+
+enum TaskType {
+  HEAT_FOLLOWUP
+  INSEMINATION
+  PREGNANCY_CHECK
+  DRY_OFF
+  CALVING_PREPARATION
+  POSTPARTUM_CHECK
+  VACCINATION
+  DEWORMING
+  TREATMENT
+  VET_FOLLOWUP
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+model FarmUser {
+  id           String          @id @default(uuid()) @db.Uuid
+  name         String
+  email        String          @unique
+  passwordHash String
+  role         Role            @default(WORKER)
+  isActive     Boolean         @default(true)
+  tasks        ScheduledTask[]
+  createdAt    DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime        @updatedAt @db.Timestamptz(3)
+}
+
+model Cow {
+  id                 String          @id @default(uuid()) @db.Uuid
+  tagNumber          String          @unique @db.VarChar(50)
+  name               String?
+  photoUrl           String?
+  sex                Sex
+  category           Category
+  breed              String?
+  birthDate          DateTime?       @db.Date
+  birthDateEstimated Boolean         @default(false)
+  origin             Origin
+  purchaseDate       DateTime?       @db.Date
+  purchasePrice      Decimal?        @db.Decimal(12, 2)
+  sellerName         String?
+  motherId           String?         @db.Uuid
+  mother             Cow?            @relation("MotherCalves", fields: [motherId], references: [id], onDelete: Restrict)
+  calves             Cow[]           @relation("MotherCalves")
+  birthCalvingId     String?         @db.Uuid
+  birthCalving       Calving?        @relation(fields: [birthCalvingId], references: [id], onDelete: Restrict)
+  sireDetails        String?
+  status             CowStatus       @default(ACTIVE)
+  exitDate           DateTime?       @db.Date
+  notes              String?
+  cycles             BreedingCycle[]
+  healthEvents       HealthEvent[]
+  tasks              ScheduledTask[]
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([status, category])
+  @@index([motherId])
+}
+
+model BreedingCycle {
+  id        String            @id @default(uuid()) @db.Uuid
+  cowId     String            @db.Uuid
+  cow       Cow               @relation(fields: [cowId], references: [id], onDelete: Restrict)
+  startedOn DateTime          @db.Date
+  closedOn  DateTime?         @db.Date
+  status    CycleStatus       @default(OPEN)
+  notes     String?
+  heats     HeatObservation[]
+  services  BreedingService[]
+  checks    PregnancyCheck[]
+  pregnancy Pregnancy?
+  tasks     ScheduledTask[]
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([cowId, startedOn])
+}
+
+model HeatObservation {
+  id              String        @id @default(uuid()) @db.Uuid
+  breedingCycleId String        @db.Uuid
+  cycle           BreedingCycle @relation(fields: [breedingCycleId], references: [id], onDelete: Restrict)
+  observedAt      DateTime      @db.Timestamptz(3)
+  signs           String
+  observedBy      String?
+  notes           String?
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([breedingCycleId, observedAt])
+}
+
+model BreedingService {
+  id              String         @id @default(uuid()) @db.Uuid
+  breedingCycleId String         @db.Uuid
+  cycle           BreedingCycle  @relation(fields: [breedingCycleId], references: [id], onDelete: Restrict)
+  performedAt     DateTime       @db.Timestamptz(3)
+  method          BreedingMethod
+  semenCode       String?
+  semenBatch      String?
+  bullDetails     String?
+  technicianName  String?
+  cost            Decimal        @default(0) @db.Decimal(12, 2)
+  notes           String?
+  pregnancy       Pregnancy?
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@index([breedingCycleId, performedAt])
+}
+
+model PregnancyCheck {
+  id               String        @id @default(uuid()) @db.Uuid
+  breedingCycleId  String        @db.Uuid
+  cycle            BreedingCycle @relation(fields: [breedingCycleId], references: [id], onDelete: Restrict)
+  checkedAt        DateTime      @db.Timestamptz(3)
+  method           String
+  result           CheckResult
+  veterinarianName String?
+  nextCheckDate    DateTime?     @db.Date
+  cost             Decimal       @default(0) @db.Decimal(12, 2)
+  notes            String?
+  createdAt        DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([breedingCycleId, checkedAt])
+}
+
+model Pregnancy {
+  id                   String           @id @default(uuid()) @db.Uuid
+  breedingCycleId      String           @unique @db.Uuid
+  cycle                BreedingCycle    @relation(fields: [breedingCycleId], references: [id], onDelete: Restrict)
+  breedingServiceId    String?          @unique @db.Uuid
+  service              BreedingService? @relation(fields: [breedingServiceId], references: [id], onDelete: Restrict)
+  confirmedOn          DateTime         @db.Date
+  estimatedCalvingDate DateTime?        @db.Date
+  plannedDryOffDate    DateTime?        @db.Date
+  actualDryOffDate     DateTime?        @db.Date
+  status               PregnancyStatus  @default(ONGOING)
+  endedOn              DateTime?        @db.Date
+  outcomeNotes         String?
+  calving              Calving?
+  tasks                ScheduledTask[]
+  createdAt            DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([status, estimatedCalvingDate])
+}
+
+model Calving {
+  id              String    @id @default(uuid()) @db.Uuid
+  pregnancyId     String    @unique @db.Uuid
+  pregnancy       Pregnancy @relation(fields: [pregnancyId], references: [id], onDelete: Restrict)
+  calvedAt        DateTime  @db.Timestamptz(3)
+  assistanceLevel String?
+  totalBorn       Int
+  bornAlive       Int
+  stillborn       Int
+  attendedBy      String?
+  complications   String?
+  notes           String?
+  calves          Cow[]
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+}
+
+model HealthEvent {
+  id               String          @id @default(uuid()) @db.Uuid
+  cowId            String          @db.Uuid
+  cow              Cow             @relation(fields: [cowId], references: [id], onDelete: Restrict)
+  eventType        HealthType
+  occurredAt       DateTime        @db.Timestamptz(3)
+  resolvedAt       DateTime?       @db.Timestamptz(3)
+  symptoms         String?
+  diagnosis        String?
+  veterinarianName String?
+  consultationCost Decimal         @default(0) @db.Decimal(12, 2)
+  notes            String?
+  treatments       Treatment[]
+  tasks            ScheduledTask[]
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([cowId, occurredAt])
+}
+
+model Treatment {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  healthEventId          String                    @db.Uuid
+  healthEvent            HealthEvent               @relation(fields: [healthEventId], references: [id], onDelete: Restrict)
+  treatmentType          TreatmentType
+  productName            String
+  targetDisease          String?
+  prescribedInstructions String
+  prescribedBy           String?
+  startsOn               DateTime                  @db.Date
+  endsOn                 DateTime?                 @db.Date
+  status                 TreatmentStatus           @default(PLANNED)
+  milkWithdrawalRequired Boolean                   @default(false)
+  meatWithdrawalRequired Boolean                   @default(false)
+  milkRestrictedUntil    DateTime?                 @db.Timestamptz(3)
+  meatRestrictedUntil    DateTime?                 @db.Timestamptz(3)
+  notes                  String?
+  administrations        TreatmentAdministration[]
+  tasks                  ScheduledTask[]
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                  @updatedAt @db.Timestamptz(3)
+
+  @@index([healthEventId])
+}
+
+model TreatmentAdministration {
+  id             String    @id @default(uuid()) @db.Uuid
+  treatmentId    String    @db.Uuid
+  treatment      Treatment @relation(fields: [treatmentId], references: [id], onDelete: Restrict)
+  administeredAt DateTime  @db.Timestamptz(3)
+  doseAmount     Decimal   @db.Decimal(12, 3)
+  doseUnit       String
+  route          String?
+  productBatch   String?
+  productExpiry  DateTime? @db.Date
+  administeredBy String?
+  cost           Decimal   @default(0) @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([treatmentId, administeredAt])
+}
+
+model ScheduledTask {
+  completionEvidence Json?
+  id                 String         @id @default(uuid()) @db.Uuid
+  cowId              String         @db.Uuid
+  cow                Cow            @relation(fields: [cowId], references: [id], onDelete: Restrict)
+  breedingCycleId    String?        @db.Uuid
+  cycle              BreedingCycle? @relation(fields: [breedingCycleId], references: [id], onDelete: Restrict)
+  pregnancyId        String?        @db.Uuid
+  pregnancy          Pregnancy?     @relation(fields: [pregnancyId], references: [id], onDelete: Restrict)
+  healthEventId      String?        @db.Uuid
+  healthEvent        HealthEvent?   @relation(fields: [healthEventId], references: [id], onDelete: Restrict)
+  treatmentId        String?        @db.Uuid
+  treatment          Treatment?     @relation(fields: [treatmentId], references: [id], onDelete: Restrict)
+  assignedTo         String?        @db.Uuid
+  assignee           FarmUser?      @relation(fields: [assignedTo], references: [id], onDelete: Restrict)
+  taskType           TaskType
+  title              String
+  dueAt              DateTime       @db.Timestamptz(3)
+  status             TaskStatus     @default(PENDING)
+  completedAt        DateTime?      @db.Timestamptz(3)
+  completionNotes    String?
+  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@index([status, dueAt])
+  @@index([cowId, dueAt])
+  @@index([assignedTo, status])
+}
